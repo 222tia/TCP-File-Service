@@ -48,7 +48,7 @@ public class FileServer {
                 case 'R' -> {
                     File file = extractRequest(request);
 
-                    String newFileName = "renamed_file";
+                    String newFileName = defaultPath + "test_directory/renamed_file";
                     File newFile = new File(newFileName);
 
                     boolean success = false;
@@ -64,6 +64,7 @@ public class FileServer {
 
                     boolean success = false;
                     if (directory.exists()) {
+                        success = true;
                         String files = Arrays.toString(directory.list()); // get list of files
                         ByteBuffer filesInDirectory = ByteBuffer.wrap(files.getBytes()); // wrap in a byte buffer
                         // TODO: send filesInDirectory back to client
