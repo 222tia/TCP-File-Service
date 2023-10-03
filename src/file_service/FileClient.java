@@ -30,12 +30,11 @@ public class FileClient {
             switch (command) {
 
                 case "D" -> {
-                    System.out.println("Please enter the name of the file you want to delete: ");
+                    System.out.println("Please enter the pathname ('directory_name/file_name') of the file you want to delete: ");
                     String fileName = keyboard.nextLine();
                     ByteBuffer request = ByteBuffer.wrap((command + fileName).getBytes()); // convert to byte buffer
 
-                    SocketChannel channel = SocketChannel.open(); // open TCP socket
-                    connectAndShutdownTCPSocket(channel, request, serverPort, args);
+                    SocketChannel channel = connectAndShutdownTCPSocket(request, serverPort, args);
 
                     String statusCode = getStatusCode(channel);
                     System.out.println(statusCode);
@@ -54,20 +53,19 @@ public class FileClient {
                     String directoryName = keyboard.nextLine();
                     ByteBuffer request = ByteBuffer.wrap((command + directoryName).getBytes()); // convert to byte buffer
 
-                    SocketChannel channel = SocketChannel.open(); // open TCP socket
-                    connectAndShutdownTCPSocket(channel, request, serverPort, args);
+                    SocketChannel channel = connectAndShutdownTCPSocket(request, serverPort, args);
 
                     String statusCode = getStatusCode(channel);
                     System.out.println(statusCode);
+
                 }
 
                 case "R" -> {
-                    System.out.println("Please enter the name of the file you want to rename: ");
+                    System.out.println("Please enter the pathname ('directory_name/file_name') of file you want to rename: ");
                     String fileName = keyboard.nextLine();
                     ByteBuffer request = ByteBuffer.wrap((command + fileName).getBytes()); // convert to byte buffer
 
-                    SocketChannel channel = SocketChannel.open(); // open TCP socket
-                    connectAndShutdownTCPSocket(channel, request, serverPort, args);
+                    SocketChannel channel = connectAndShutdownTCPSocket(request, serverPort, args);
 
                     String statusCode = getStatusCode(channel);
                     System.out.println(statusCode);
@@ -85,10 +83,12 @@ public class FileClient {
 
     }
 
-    public static void connectAndShutdownTCPSocket(SocketChannel channel, ByteBuffer request, int serverPort, String[] args) throws Exception {
+    public static SocketChannel connectAndShutdownTCPSocket(ByteBuffer request, int serverPort, String[] args) throws Exception {
+        SocketChannel channel = SocketChannel.open(); // open TCP socket
         channel.connect(new InetSocketAddress(args[0], serverPort)); // connect socket to server ip and port
         channel.write(request); // write request into byte buffer to be sent to the server
         channel.shutdownOutput(); // tells server to stop waiting to receive more and to process what has been sent
+        return channel;
     }
 
     public static String getStatusCode(SocketChannel channel) throws Exception{

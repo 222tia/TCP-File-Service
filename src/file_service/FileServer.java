@@ -5,8 +5,11 @@ import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.util.Arrays;
 
 public class FileServer {
+
+    private static final String defaultPath = "C:/Users/tiase/Documents/ijprojects/CS316-Project3/src/";
 
     public static void main(String[] args) throws Exception {
 
@@ -32,10 +35,8 @@ public class FileServer {
             switch (command) {
 
                 case 'D' -> {
-                    byte[] a = new byte[request.remaining()]; // create new byte array to extract request from the buffer
-                    request.get(a);
-                    String fileName = new String(a);
-                    File file = new File("C:/Users/tiase/CS/ijprojects/TCPFileService/src/test_directory/" + fileName);
+                    File file = extractRequest(request);
+
                     boolean success = false;
                     if (file.exists()) {
                         success = file.delete();
@@ -45,13 +46,10 @@ public class FileServer {
                 }
 
                 case 'R' -> {
-                    byte[] a = new byte[request.remaining()]; // create new byte array to extract request from the buffer
-                    request.get(a);
-                    String fileName = new String(a);
-                    File file = new File("C:/Users/tiase/CS/ijprojects/TCPFileService/src/test_directory/" + fileName);
+                    File file = extractRequest(request);
 
                     String newFileName = "renamed_file";
-                    File newFile = new File("C:/Users/tiase/CS/ijprojects/TCPFileService/src/test_directory/" + newFileName);
+                    File newFile = new File(newFileName);
 
                     boolean success = false;
                     if (file.exists()) {
@@ -62,16 +60,13 @@ public class FileServer {
                 }
 
                 case 'L' -> {
-                    byte[] a = new byte[request.remaining()]; // create new byte array to extract request from the buffer
-                    request.get(a);
-                    String directoryName = new String(a);
-                    File directory = new File("C:/Users/tiase/CS/ijprojects/TCPFileService/src/" + directoryName);
+                    File directory = extractRequest(request);
 
                     boolean success = false;
                     if (directory.exists()) {
-                        // for file in directory
-                        // wrap files in byte buffer and send it back to the client
-
+                        String files = Arrays.toString(directory.list()); // get list of files
+                        ByteBuffer filesInDirectory = ByteBuffer.wrap(files.getBytes()); // wrap in a byte buffer
+                        // TODO: send filesInDirectory back to client
                     }
 
                     sendStatusCode(success, serverChannel);
@@ -92,6 +87,13 @@ public class FileServer {
         }
         serverChannel.write(code); // write code into the channel to be received by the client
         serverChannel.close();
+    }
+
+    public static File extractRequest(ByteBuffer request){
+        byte[] a = new byte[request.remaining()]; // create new byte array to extract request from the buffer
+        request.get(a);
+        String pathName = new String(a);
+        return new File(defaultPath + pathName);
     }
 }
 
