@@ -5,12 +5,15 @@ import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.nio.file.Files;
 import java.util.Arrays;
 
 public class FileServer {
 
-    private static final String filePath = "C:/Users/tiase/Documents/ijprojects/CS316-Project3/src/";
-    private static final String directoryName = "test_directory/";
+    public static final String BASE_FILE_PATH = "C:/Users/tiase/Documents/ijprojects/CS316-Project3/src/";
+    private static final String SERVER_FILE_PATH = "server_files/";
+
+    private static final String CLIENT_FILE_PATH = "client_files/";
 
     public static void main(String[] args) throws Exception {
 
@@ -26,7 +29,6 @@ public class FileServer {
             int numBytes; // keep track of bytes that has been read from the tcp channel
             do {
                 numBytes = serverChannel.read(request); // read serverChannel and save data into the byte buffer
-                // when shutdownoutput signal is received, .read() will return -1 and then break out of the do while loop
             } while (numBytes >= 0);
 
             request.flip();
@@ -35,7 +37,7 @@ public class FileServer {
 
                 case 'D' -> {
                     String userRequest = extractRequest(request);
-                    File fileToDelete = new File(filePath + directoryName + userRequest);
+                    File fileToDelete = new File(BASE_FILE_PATH + SERVER_FILE_PATH + userRequest);
 
                     boolean success = false;
                     if (fileToDelete.exists()) {
@@ -46,11 +48,32 @@ public class FileServer {
                 }
 
                 case 'U' -> {
-                    // TODO: add code for upload command
+                    String userRequest = extractRequest(request);
+                    File fileToUpload = new File(BASE_FILE_PATH + CLIENT_FILE_PATH + userRequest);
+
+                    boolean success = false;
+                    if (fileToUpload.exists()) {
+                        success = true;
+                        File destination = new File(BASE_FILE_PATH + SERVER_FILE_PATH + userRequest);
+                        Files.copy(fileToUpload.toPath(), destination.toPath());
+                    }
+
+                    sendStatusCode(success, serverChannel);
+
                 }
 
                 case 'G' -> {
-                    // TODO: add code for download command
+                    String userRequest = extractRequest(request);
+                    File fileToDownload = new File(BASE_FILE_PATH + SERVER_FILE_PATH + userRequest);
+
+                    boolean success = false;
+                    if (fileToDownload.exists()) {
+                        success = true;
+                        File destination = new File(BASE_FILE_PATH + CLIENT_FILE_PATH + userRequest);
+                        Files.copy(fileToDownload.toPath(), destination.toPath());
+                    }
+
+                    sendStatusCode(success, serverChannel);
                 }
 
                 case 'R' -> {
@@ -58,10 +81,10 @@ public class FileServer {
                     String [] fileNameAndNewFileName = userRequest.split("/", -2);
 
                     String originalFileName = fileNameAndNewFileName[0];
-                    File fileToRename = new File(filePath + directoryName + originalFileName);
+                    File fileToRename = new File(BASE_FILE_PATH + SERVER_FILE_PATH + originalFileName);
 
                     String newFileName = fileNameAndNewFileName[1];
-                    File renamedFile = new File(filePath + directoryName + newFileName);
+                    File renamedFile = new File(BASE_FILE_PATH + SERVER_FILE_PATH + newFileName);
 
                     boolean success = false;
                     if (fileToRename.exists()) {
@@ -73,18 +96,18 @@ public class FileServer {
 
                 case 'L' -> {
                     String directoryName = extractRequest(request);
-                    File directory = new File(filePath + directoryName);
+                    File directory = new File(BASE_FILE_PATH + directoryName);
 
                     boolean success = false;
                     if (directory.exists()) {
-                        success = true;
-                        String files = Arrays.toString(directory.list()); // get list of files
-                        ByteBuffer filesInDirectory = ByteBuffer.wrap(files.getBytes()); // wrap in a byte buffer
-                        // TODO: send filesInDirectory back to client
+                        String[] filesInDirectory = directory.list();
+                        // sends list of files to the client
+                        ByteBuffer list = ByteBuffer.wrap((Arrays.toString(filesInDirectory)).getBytes());
+                        serverChannel.write(list);
+                        serverChannel.close();
+                    } else {
+                        sendStatusCode(success, serverChannel);
                     }
-
-                    sendStatusCode(success, serverChannel);
-
                 }
 
             }

@@ -1,5 +1,6 @@
 package file_service;
 
+import java.io.File;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
@@ -8,6 +9,7 @@ import java.util.Scanner;
 public class FileClient {
 
     private final static int STATUS_CODE_LENGTH = 1;
+    private final static int LIST_LENGTH = 2500;
 
     public static void main(String[] args) throws Exception{
 
@@ -40,11 +42,23 @@ public class FileClient {
                     }
 
                 case "U" -> {
-                   // TODO: add code for upload command
+                    String fileName = getUserInput(keyboard, "Please enter the name of the file you want to upload:");
+                    ByteBuffer request = ByteBuffer.wrap((command + fileName).getBytes());
+
+                    SocketChannel channel = connectAndShutdownTCPSocket(request, serverPort, args);
+
+                    String statusCode = getStatusCode(channel);
+                    System.out.println(statusCode);
                 }
 
                 case "G" -> {
-                    // TODO: add code for download command
+                    String fileName = getUserInput(keyboard, "Please enter the name of the file you want to download:");
+                    ByteBuffer request = ByteBuffer.wrap((command + fileName).getBytes());
+
+                    SocketChannel channel = connectAndShutdownTCPSocket(request, serverPort, args);
+
+                    String statusCode = getStatusCode(channel);
+                    System.out.println(statusCode);
                 }
 
                 case "L" -> {
@@ -53,8 +67,14 @@ public class FileClient {
 
                     SocketChannel channel = connectAndShutdownTCPSocket(request, serverPort, args);
 
-                    String statusCode = getStatusCode(channel);
-                    System.out.println(statusCode);
+                    File directory = new File(FileServer.BASE_FILE_PATH + directoryName);
+                    if (directory.exists()){
+                        String list = getList(channel); // TODO: fix BufferUnderFlowException
+                        System.out.println(list);
+                    } else {
+                        String statusCode = getStatusCode(channel);
+                        System.out.println(statusCode);
+                    }
 
                 }
 
@@ -63,6 +83,7 @@ public class FileClient {
                     ByteBuffer request = ByteBuffer.wrap((command + fileName).getBytes());
 
                     SocketChannel channel = connectAndShutdownTCPSocket(request, serverPort, args);
+
 
                     String statusCode = getStatusCode(channel);
                     System.out.println(statusCode);
@@ -95,6 +116,15 @@ public class FileClient {
         byte[] a = new byte[STATUS_CODE_LENGTH];
         code.get(a); // get content from buffer and put it in a byte array
         return new String(a); // convert byte array "a" into a string
+    }
+
+    public static String getList(SocketChannel channel) throws Exception {
+        ByteBuffer code = ByteBuffer.allocate(LIST_LENGTH);
+        channel.read(code);
+        code.flip();
+        byte[] a = new byte[LIST_LENGTH];
+        code.get(a);
+        return new String(a);
     }
 
     public static String getUserInput(Scanner keyboard, String inputPrompt) {
