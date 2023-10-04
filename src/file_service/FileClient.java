@@ -30,9 +30,8 @@ public class FileClient {
             switch (command) {
 
                 case "D" -> {
-                    System.out.println("Please enter the pathname ('directory_name/file_name') of the file you want to delete: ");
-                    String fileName = keyboard.nextLine();
-                    ByteBuffer request = ByteBuffer.wrap((command + fileName).getBytes()); // convert to byte buffer
+                    String fileName = getUserInput(keyboard, "Please enter the name of the file you want to delete: ");
+                    ByteBuffer request = ByteBuffer.wrap((command + fileName).getBytes());
 
                     SocketChannel channel = connectAndShutdownTCPSocket(request, serverPort, args);
 
@@ -49,9 +48,8 @@ public class FileClient {
                 }
 
                 case "L" -> {
-                    System.out.println("Please enter the directory you want to list the files of: ");
-                    String directoryName = keyboard.nextLine();
-                    ByteBuffer request = ByteBuffer.wrap((command + directoryName).getBytes()); // convert to byte buffer
+                    String directoryName = getUserInput(keyboard, "Please enter the directory you want to list the files of: ");
+                    ByteBuffer request = ByteBuffer.wrap((command + directoryName).getBytes());
 
                     SocketChannel channel = connectAndShutdownTCPSocket(request, serverPort, args);
 
@@ -61,9 +59,8 @@ public class FileClient {
                 }
 
                 case "R" -> {
-                    System.out.println("Please enter the pathname ('directory_name/file_name') of file you want to rename: ");
-                    String fileName = keyboard.nextLine();
-                    ByteBuffer request = ByteBuffer.wrap((command + fileName).getBytes()); // convert to byte buffer
+                    String fileName =  getUserInput(keyboard, "Please enter the name of the file you want to rename and what you want to rename it to (file_name/new_file_name): ");
+                    ByteBuffer request = ByteBuffer.wrap((command + fileName).getBytes());
 
                     SocketChannel channel = connectAndShutdownTCPSocket(request, serverPort, args);
 
@@ -98,6 +95,11 @@ public class FileClient {
         byte[] a = new byte[STATUS_CODE_LENGTH];
         code.get(a); // get content from buffer and put it in a byte array
         return new String(a); // convert byte array "a" into a string
+    }
+
+    public static String getUserInput(Scanner keyboard, String inputPrompt) {
+        System.out.println(inputPrompt);
+        return keyboard.nextLine();
     }
 
 

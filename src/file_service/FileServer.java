@@ -9,7 +9,8 @@ import java.util.Arrays;
 
 public class FileServer {
 
-    private static final String defaultPath = "C:/Users/tiase/Documents/ijprojects/CS316-Project3/src/";
+    private static final String filePath = "C:/Users/tiase/Documents/ijprojects/CS316-Project3/src/";
+    private static final String directoryName = "test_directory/";
 
     public static void main(String[] args) throws Exception {
 
@@ -20,11 +21,9 @@ public class FileServer {
         while (true) {
 
             SocketChannel serverChannel = welcomeChannel.accept(); // accepts client request and creates a new socket, will establish the tcp connection with the client
-            // read client request
-            ByteBuffer request = ByteBuffer.allocate(2500); // create empty buffer
+            ByteBuffer request = ByteBuffer.allocate(2500); // create empty buffer to read client request
 
-            // keep track of bytes that has been read from the tcp channel
-            int numBytes;
+            int numBytes; // keep track of bytes that has been read from the tcp channel
             do {
                 numBytes = serverChannel.read(request); // read serverChannel and save data into the byte buffer
                 // when shutdownoutput signal is received, .read() will return -1 and then break out of the do while loop
@@ -35,32 +34,46 @@ public class FileServer {
             switch (command) {
 
                 case 'D' -> {
-                    File file = extractRequest(request);
+                    String userRequest = extractRequest(request);
+                    File fileToDelete = new File(filePath + directoryName + userRequest);
 
                     boolean success = false;
-                    if (file.exists()) {
-                        success = file.delete();
+                    if (fileToDelete.exists()) {
+                        success = fileToDelete.delete();
                     }
 
                     sendStatusCode(success, serverChannel);
                 }
 
-                case 'R' -> {
-                    File file = extractRequest(request);
+                case 'U' -> {
+                    // TODO: add code for upload command
+                }
 
-                    String newFileName = defaultPath + "test_directory/renamed_file";
-                    File newFile = new File(newFileName);
+                case 'G' -> {
+                    // TODO: add code for download command
+                }
+
+                case 'R' -> {
+                    String userRequest = extractRequest(request);
+                    String [] fileNameAndNewFileName = userRequest.split("/", -2);
+
+                    String originalFileName = fileNameAndNewFileName[0];
+                    File fileToRename = new File(filePath + directoryName + originalFileName);
+
+                    String newFileName = fileNameAndNewFileName[1];
+                    File renamedFile = new File(filePath + directoryName + newFileName);
 
                     boolean success = false;
-                    if (file.exists()) {
-                        success = file.renameTo(newFile);
+                    if (fileToRename.exists()) {
+                        success = fileToRename.renameTo(renamedFile);
                     }
 
                     sendStatusCode(success, serverChannel);
                 }
 
                 case 'L' -> {
-                    File directory = extractRequest(request);
+                    String directoryName = extractRequest(request);
+                    File directory = new File(filePath + directoryName);
 
                     boolean success = false;
                     if (directory.exists()) {
@@ -90,11 +103,10 @@ public class FileServer {
         serverChannel.close();
     }
 
-    public static File extractRequest(ByteBuffer request){
+    public static String extractRequest(ByteBuffer request){
         byte[] a = new byte[request.remaining()]; // create new byte array to extract request from the buffer
         request.get(a);
-        String pathName = new String(a);
-        return new File(defaultPath + pathName);
+        return new String(a);
     }
 }
 
