@@ -23,7 +23,6 @@ public class FileServer {
 
     private static int writerNum = 0;
     private static int readerNum = 0;
-    private static int resource = 0;
 
     public static final String BASE_FILE_PATH = "C:/Users/tiase/Documents/ijprojects/TCP-File-Service/src/";
     private static final String SERVER_FILE_PATH = "server_files/";
@@ -44,7 +43,7 @@ public class FileServer {
 
 
             int port = 3000;
-            ServerSocketChannel welcomeChannel = null; // responsible accepting connection requests
+            ServerSocketChannel welcomeChannel; // responsible accepting connection requests
             try {
                 welcomeChannel = ServerSocketChannel.open();
                 welcomeChannel.bind(new InetSocketAddress(port)); //inetsocket address represents port and ip address
@@ -54,7 +53,7 @@ public class FileServer {
 
             while (true) {
 
-                SocketChannel serverChannel = null; // accepts client request and creates a new socket, will establish the tcp connection with the client
+                SocketChannel serverChannel; // accepts client request and creates a new socket, will establish the tcp connection with the client
                 try {
                     serverChannel = welcomeChannel.accept();
                 } catch (IOException e) {
@@ -95,7 +94,6 @@ public class FileServer {
                             sendStatusCode(success, serverChannel);
                             // release reader
 
-                            System.out.println("Reader #" + readerNum + " has read resource as: " + resource);
                             readerNum--;
                             if (readerNum == 0) {
                                 isDoneReading.signal();
@@ -119,7 +117,6 @@ public class FileServer {
                                 isDoneReading.await();
                             }
                             isWriterWriting = true;
-                            resource++;
                             writerNum++;
 
                             // TODO: file write logic
@@ -136,7 +133,6 @@ public class FileServer {
                             sendStatusCode(success, serverChannel);
                             // release writer
 
-                            System.out.println("Writer # " + writerNum + " wrote the resource to: " + resource);
                             writerNum--;
                             if (writerNum == 0) {
                                 isNoWriter.signal();
