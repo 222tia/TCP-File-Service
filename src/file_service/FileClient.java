@@ -23,7 +23,6 @@ public class FileClient {
 
     private static int writerNum = 0;
     private static int readerNum = 0;
-    private static int resource = 0;
 
     public static void main(String[] args) throws Exception{
 
