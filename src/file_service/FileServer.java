@@ -21,12 +21,12 @@ public class FileServer {
 
     public static ReentrantLock lock = new ReentrantLock(); // Lock to sync threads
 
-    public static boolean isWriterWriting = false; //Checks if writers are active
-    public static Condition isNoWriter = lock.newCondition(); // Checks if there are any writers
-    public static Condition isDoneReading = lock.newCondition(); // Checks when readers are done reading
+    public static boolean isClientUploading = false; // checks if any file is being uploaded
+    public static Condition isNotUploading = lock.newCondition(); // signals that a file isn't being uploaded
+    public static Condition isDoneDownloading = lock.newCondition(); // checks when a download is finished
 
-    private static int writerNum = 0;
-    private static int readerNum = 0;
+    private static int clientsUploadingNum = 0;
+    private static int clientsDownloadingNum = 0;
 
     public static void main(String[] args) throws Exception {
 
@@ -63,14 +63,16 @@ public class FileServer {
                 }
 
                 case 'U' -> {
-                    Runnable writer = new CaseU(serverChannel, request);
-                    es.submit(writer);
+                    // submit request to the executor service to be executed
+                    Runnable uploader = new CaseU(serverChannel, request);
+                    es.submit(uploader);
 
                 }
 
                 case 'G' -> {
-                    Runnable reader = new CaseG(serverChannel, request);
-                    es.submit(reader);
+                    // submit request to the executor service to be executed
+                    Runnable downloader = new CaseG(serverChannel, request);
+                    es.submit(downloader);
                 }
 
                 case 'R' -> {
@@ -145,14 +147,18 @@ public class FileServer {
             this.request = request;
         }
         public void run() {
-            lock.lock();
-            try {
-                while(isWriterWriting && readerNum ==0) {
-                    isDoneReading.await();
-                }
-                isWriterWriting = true;
-                writerNum++;
 
+            lock.lock();
+
+            try {
+
+                while(isClientUploading && clientsDownloadingNum ==0) {
+                    isDoneDownloading.await();
+                }
+                isClientUploading = true;
+                clientsUploadingNum++;
+
+                // upload logic
                 String userRequest = extractRequest(request);
                 File fileToUpload = new File(BASE_FILE_PATH + CLIENT_FILE_PATH + userRequest);
 
@@ -164,10 +170,11 @@ public class FileServer {
                 }
 
                 sendStatusCode(success, serverChannel);
+                // end of upload logic
 
-                writerNum--;
-                if(writerNum == 0){
-                    isNoWriter.signal();
+                clientsUploadingNum--;
+                if(clientsUploadingNum == 0){
+                    isNotUploading.signal();
                 }
 
             } catch (InterruptedException e) {
@@ -175,11 +182,12 @@ public class FileServer {
             } catch (Exception e) {
                 throw new RuntimeException(e);
             } finally {
-                isWriterWriting = false;
+                isClientUploading = false;
                 lock.unlock();
             }
 
         }
+
     }
     private static class CaseG implements Runnable {
 
@@ -191,13 +199,17 @@ public class FileServer {
             this.request = request;
         }
         public void run() {
-            lock.lock();
-            try {
-                while(isWriterWriting) {
-                    isNoWriter.await();
-                }
-                readerNum++;
 
+            lock.lock();
+
+            try {
+
+                while(isClientUploading) {
+                    isNotUploading.await();
+                }
+                clientsDownloadingNum++;
+
+                // download logic
                 String userRequest = extractRequest(request);
                 File fileToDownload = new File(BASE_FILE_PATH + SERVER_FILE_PATH + userRequest);
 
@@ -209,10 +221,11 @@ public class FileServer {
                 }
 
                 sendStatusCode(success, serverChannel);
+                // end of download logic
 
-                readerNum--;
-                if(readerNum == 0){
-                    isDoneReading.signal();
+                clientsDownloadingNum--;
+                if(clientsDownloadingNum == 0){
+                    isDoneDownloading.signal();
                 }
 
             } catch (InterruptedException e) {
@@ -224,8 +237,9 @@ public class FileServer {
             }
 
         }
-        }
+
     }
+}
 
 
 

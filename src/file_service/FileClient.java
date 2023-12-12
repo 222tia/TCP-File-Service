@@ -17,12 +17,12 @@ public class FileClient {
 
     public static ReentrantLock lock = new ReentrantLock(); // Lock to sync threads
 
-    public static boolean isWriterWriting = false; //Checks if writers are active
-    public static Condition isNoWriter = lock.newCondition(); // Checks if there are any writers
-    public static Condition isDoneReading = lock.newCondition(); // Checks when readers are done reading
+    public static boolean isClientUploading = false; // checks if any file is being uploaded
+    public static Condition isNotUploading = lock.newCondition(); // signals that a file isn't being uploaded
+    public static Condition isDoneDownloading = lock.newCondition(); // checks when a download is finished
 
-    private static int writerNum = 0;
-    private static int readerNum = 0;
+    private static int clientsUploadingNum = 0;
+    private static int clientsDownloadingNum = 0;
 
     public static void main(String[] args) throws Exception{
 
@@ -59,17 +59,19 @@ public class FileClient {
                 case "U" -> {
                     String fileName = getUserInput(keyboard, "Please enter the name of the file you want to upload:");
                     ByteBuffer request = ByteBuffer.wrap((command + fileName).getBytes());
-                    
-                    Runnable writer = new CaseU(request, serverPort,args);
-                    es.submit(writer);
+
+                    // submit request to the executor service to be executed
+                    Runnable uploader = new CaseU(request, serverPort,args);
+                    es.submit(uploader);
                 }
 
                 case "G" -> {
                     String fileName = getUserInput(keyboard, "Please enter the name of the file you want to download:");
                     ByteBuffer request = ByteBuffer.wrap((command + fileName).getBytes());
-                    
-                    Runnable reader = new CaseG(request, serverPort, args);
-                    es.submit(reader);
+
+                    // submit request to the executor service to be executed
+                    Runnable downloader = new CaseG(request, serverPort, args);
+                    es.submit(downloader);
                 }
 
                 case "L" -> {
@@ -156,33 +158,40 @@ public class FileClient {
             this.args = args;
         }
         public void run() {
+
             lock.lock();
+
             try {
-                while(isWriterWriting && readerNum ==0) {
-                    isDoneReading.await();
+
+                while(isClientUploading && clientsDownloadingNum == 0) {
+                    isDoneDownloading.await();
                 }
-                isWriterWriting = true;
+                isClientUploading = true;
+                clientsUploadingNum++;
 
-                writerNum++;
-
+                // send request
                 SocketChannel channel = connectAndShutdownTCPSocket(request, serverPort, args);
 
                 String statusCode = getStatusCode(channel);
                 System.out.println(statusCode);
+                // end of upload logic
  
-                writerNum--;
-                if(writerNum == 0){
-                    isNoWriter.signal();
+                clientsUploadingNum--;
+                if(clientsUploadingNum == 0){
+                    isNotUploading.signal();
                 }
+
             } catch (InterruptedException e) {
                 e.printStackTrace();
             } catch (Exception e) {
                 throw new RuntimeException(e);
             } finally {
-                isWriterWriting = false;
+                isClientUploading = false;
                 lock.unlock();
             }
+
         }
+
     }
     private static class CaseG implements Runnable {
         private final int serverPort;
@@ -195,21 +204,26 @@ public class FileClient {
             this.args = args;
         }
         public void run() {
-            lock.lock();
-            try {
-                while(isWriterWriting) {
-                    isNoWriter.await();
-                }
-                readerNum++;
 
+            lock.lock();
+
+            try {
+
+                while(isClientUploading) {
+                    isNotUploading.await();
+                }
+                clientsDownloadingNum++;
+
+                // send request
                 SocketChannel channel = connectAndShutdownTCPSocket(request, serverPort, args);
 
                 String statusCode = getStatusCode(channel);
                 System.out.println(statusCode);
+                // end of download logic
 
-                readerNum--;
-                if(readerNum == 0){
-                    isDoneReading.signal();
+                clientsDownloadingNum--;
+                if(clientsDownloadingNum == 0){
+                    isDoneDownloading.signal();
                 }
 
             } catch (InterruptedException e) {
@@ -219,8 +233,9 @@ public class FileClient {
             } finally {
                 lock.unlock();
             }
-        }
-    }
 
+        }
+
+    }
 
 }
