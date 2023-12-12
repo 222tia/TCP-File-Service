@@ -5,6 +5,8 @@ import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.util.Scanner;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -24,6 +26,8 @@ public class FileClient {
     private static int resource = 0;
 
     public static void main(String[] args) throws Exception{
+
+        ExecutorService es = Executors.newFixedThreadPool(4);
 
         if (args.length !=2) {
             System.out.println("Syntax: FileClient <ServerIP> <ServerPort>");
@@ -56,21 +60,17 @@ public class FileClient {
                 case "U" -> {
                     String fileName = getUserInput(keyboard, "Please enter the name of the file you want to upload:");
                     ByteBuffer request = ByteBuffer.wrap((command + fileName).getBytes());
-
-                    SocketChannel channel = connectAndShutdownTCPSocket(request, serverPort, args);
-
-                    String statusCode = getStatusCode(channel);
-                    System.out.println(statusCode);
+                    
+                    Runnable writer = new CaseU(request, serverPort,args);
+                    es.submit(writer);
                 }
 
                 case "G" -> {
                     String fileName = getUserInput(keyboard, "Please enter the name of the file you want to download:");
                     ByteBuffer request = ByteBuffer.wrap((command + fileName).getBytes());
-
-                    SocketChannel channel = connectAndShutdownTCPSocket(request, serverPort, args);
-
-                    String statusCode = getStatusCode(channel);
-                    System.out.println(statusCode);
+                    
+                    Runnable reader = new CaseG(request, serverPort, args);
+                    es.submit(reader);
                 }
 
                 case "L" -> {
@@ -111,6 +111,7 @@ public class FileClient {
             }
         } while(!command.equalsIgnoreCase("Q"));
 
+        es.shutdown();
     }
 
     public static SocketChannel connectAndShutdownTCPSocket(ByteBuffer request, int serverPort, String[] args) throws Exception {
@@ -145,11 +146,55 @@ public class FileClient {
     }
 
     private static class CaseU implements Runnable {
-        public void run() {
+        
+        private final int serverPort;
+        private final String[] args;
+        private final ByteBuffer request;
 
+        public CaseU(ByteBuffer request, int serverPort, String[] args){
+            this.request = request;
+            this.serverPort = serverPort;
+            this.args = args;
+        }
+        public void run() {
+            lock.lock();
+            try {
+                while(isWriterWriting && readerNum ==0) {
+                    isDoneReading.await();
+                }
+                isWriterWriting = true;
+
+                writerNum++;
+
+                SocketChannel channel = connectAndShutdownTCPSocket(request, serverPort, args);
+
+                String statusCode = getStatusCode(channel);
+                System.out.println(statusCode);
+ 
+                writerNum--;
+                if(writerNum == 0){
+                    isNoWriter.signal();
+                }
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            } finally {
+                isWriterWriting = false;
+                lock.unlock();
+            }
         }
     }
     private static class CaseG implements Runnable {
+        private final int serverPort;
+        private final String[] args;
+        private final ByteBuffer request;
+
+        public CaseG(ByteBuffer request, int serverPort,String[] args){
+            this.request = request;
+            this.serverPort = serverPort;
+            this.args = args;
+        }
         public void run() {
             lock.lock();
             try {
@@ -157,7 +202,12 @@ public class FileClient {
                     isNoWriter.await();
                 }
                 readerNum++;
-                System.out.println("Reader #" + readerNum + " has read resource as: " + resource);
+
+                SocketChannel channel = connectAndShutdownTCPSocket(request, serverPort, args);
+
+                String statusCode = getStatusCode(channel);
+                System.out.println(statusCode);
+
                 readerNum--;
                 if(readerNum == 0){
                     isDoneReading.signal();
@@ -165,6 +215,8 @@ public class FileClient {
 
             } catch (InterruptedException e) {
                 e.printStackTrace();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
             } finally {
                 lock.unlock();
             }

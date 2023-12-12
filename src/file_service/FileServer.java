@@ -1,7 +1,6 @@
 package file_service;
 
 import java.io.File;
-import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.ServerSocketChannel;
@@ -28,7 +27,6 @@ public class FileServer {
 
     private static int writerNum = 0;
     private static int readerNum = 0;
-    private static int resource = 0;
 
     public static void main(String[] args) throws Exception {
 
@@ -65,22 +63,12 @@ public class FileServer {
                 }
 
                 case 'U' -> {
-                    String userRequest = extractRequest(request);
-                    File fileToUpload = new File(BASE_FILE_PATH + CLIENT_FILE_PATH + userRequest);
-
-                    boolean success = false;
-                    if (fileToUpload.exists()) {
-                        success = true;
-                        File destination = new File(BASE_FILE_PATH + SERVER_FILE_PATH + userRequest);
-                        Files.copy(fileToUpload.toPath(), destination.toPath());
-                    }
-
-                    sendStatusCode(success, serverChannel);
+                    Runnable writer = new CaseU(serverChannel, request);
+                    es.submit(writer);
 
                 }
 
                 case 'G' -> {
-
                     Runnable reader = new CaseG(serverChannel, request);
                     es.submit(reader);
                 }
@@ -119,7 +107,7 @@ public class FileServer {
                     }
                 }
 
-                case 'E' -> {
+                case 'Q' -> {
                     break loop;
                 }
             }
@@ -148,7 +136,48 @@ public class FileServer {
     }
 
     private static class CaseU implements Runnable {
+
+        private final SocketChannel serverChannel;
+        private final ByteBuffer request;
+
+        public CaseU(SocketChannel serverChannel, ByteBuffer request){
+            this.serverChannel = serverChannel;
+            this.request = request;
+        }
         public void run() {
+            lock.lock();
+            try {
+                while(isWriterWriting && readerNum ==0) {
+                    isDoneReading.await();
+                }
+                isWriterWriting = true;
+                writerNum++;
+
+                String userRequest = extractRequest(request);
+                File fileToUpload = new File(BASE_FILE_PATH + CLIENT_FILE_PATH + userRequest);
+
+                boolean success = false;
+                if (fileToUpload.exists()) {
+                    success = true;
+                    File destination = new File(BASE_FILE_PATH + SERVER_FILE_PATH + userRequest);
+                    Files.copy(fileToUpload.toPath(), destination.toPath());
+                }
+
+                sendStatusCode(success, serverChannel);
+
+                writerNum--;
+                if(writerNum == 0){
+                    isNoWriter.signal();
+                }
+
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            } finally {
+                isWriterWriting = false;
+                lock.unlock();
+            }
 
         }
     }
@@ -188,8 +217,6 @@ public class FileServer {
 
             } catch (InterruptedException e) {
                 e.printStackTrace();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
             } catch (Exception e) {
                 throw new RuntimeException(e);
             } finally {
