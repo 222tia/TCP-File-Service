@@ -5,11 +5,23 @@ import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.util.Scanner;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class FileClient {
 
     private final static int STATUS_CODE_LENGTH = 1;
     private final static int LIST_LENGTH = 2500;
+
+    public static ReentrantLock lock = new ReentrantLock(); // Lock to sync threads
+
+    public static boolean isWriterWriting = false; //Checks if writers are active
+    public static Condition isNoWriter = lock.newCondition(); // Checks if there are any writers
+    public static Condition isDoneReading = lock.newCondition(); // Checks when readers are done reading
+
+    private static int writerNum = 0;
+    private static int readerNum = 0;
+    private static int resource = 0;
 
     public static void main(String[] args) throws Exception{
 
@@ -130,6 +142,33 @@ public class FileClient {
     public static String getUserInput(Scanner keyboard, String inputPrompt) {
         System.out.println(inputPrompt);
         return keyboard.nextLine();
+    }
+
+    private static class CaseU implements Runnable {
+        public void run() {
+
+        }
+    }
+    private static class CaseG implements Runnable {
+        public void run() {
+            lock.lock();
+            try {
+                while(isWriterWriting) {
+                    isNoWriter.await();
+                }
+                readerNum++;
+                System.out.println("Reader #" + readerNum + " has read resource as: " + resource);
+                readerNum--;
+                if(readerNum == 0){
+                    isDoneReading.signal();
+                }
+
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            } finally {
+                lock.unlock();
+            }
+        }
     }
 
 

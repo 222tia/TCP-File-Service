@@ -1,27 +1,44 @@
 package file_service;
 
 import java.io.File;
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.file.Files;
 import java.util.Arrays;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class FileServer {
 
-    public static final String BASE_FILE_PATH = "C:/Users/tiase/Documents/ijprojects/CS316-Project3/src/";
+    public static final String BASE_FILE_PATH = "C:/Users/tiase/Documents/ijprojects/TCP-File-Service/src/";
     private static final String SERVER_FILE_PATH = "server_files/";
 
     private static final String CLIENT_FILE_PATH = "client_files/";
 
+    public static ReentrantLock lock = new ReentrantLock(); // Lock to sync threads
+
+    public static boolean isWriterWriting = false; //Checks if writers are active
+    public static Condition isNoWriter = lock.newCondition(); // Checks if there are any writers
+    public static Condition isDoneReading = lock.newCondition(); // Checks when readers are done reading
+
+    private static int writerNum = 0;
+    private static int readerNum = 0;
+    private static int resource = 0;
+
     public static void main(String[] args) throws Exception {
+
+        ExecutorService es = Executors.newFixedThreadPool(4);
 
         int port = 3000;
         ServerSocketChannel welcomeChannel = ServerSocketChannel.open(); // responsible accepting connection requests
         welcomeChannel.bind(new InetSocketAddress(port)); //inetsocket address represents port and ip address
 
-        while (true) {
+        loop:while (true) {
 
             SocketChannel serverChannel = welcomeChannel.accept(); // accepts client request and creates a new socket, will establish the tcp connection with the client
             ByteBuffer request = ByteBuffer.allocate(2500); // create empty buffer to read client request
@@ -63,17 +80,9 @@ public class FileServer {
                 }
 
                 case 'G' -> {
-                    String userRequest = extractRequest(request);
-                    File fileToDownload = new File(BASE_FILE_PATH + SERVER_FILE_PATH + userRequest);
 
-                    boolean success = false;
-                    if (fileToDownload.exists()) {
-                        success = true;
-                        File destination = new File(BASE_FILE_PATH + CLIENT_FILE_PATH + userRequest);
-                        Files.copy(fileToDownload.toPath(), destination.toPath());
-                    }
-
-                    sendStatusCode(success, serverChannel);
+                    Runnable reader = new CaseG(serverChannel, request);
+                    es.submit(reader);
                 }
 
                 case 'R' -> {
@@ -110,9 +119,15 @@ public class FileServer {
                     }
                 }
 
+                case 'E' -> {
+                    break loop;
+                }
             }
 
         }
+
+        es.shutdown();
+
     }
 
     public static void sendStatusCode(boolean success, SocketChannel serverChannel) throws Exception {
@@ -131,7 +146,62 @@ public class FileServer {
         request.get(a);
         return new String(a);
     }
-}
+
+    private static class CaseU implements Runnable {
+        public void run() {
+
+        }
+    }
+    private static class CaseG implements Runnable {
+
+        private final SocketChannel serverChannel;
+        private final ByteBuffer request;
+
+        public CaseG(SocketChannel serverChannel, ByteBuffer request){
+            this.serverChannel = serverChannel;
+            this.request = request;
+        }
+        public void run() {
+            lock.lock();
+            try {
+                while(isWriterWriting) {
+                    isNoWriter.await();
+                }
+                readerNum++;
+
+                String userRequest = extractRequest(request);
+                File fileToDownload = new File(BASE_FILE_PATH + SERVER_FILE_PATH + userRequest);
+
+                boolean success = false;
+                if (fileToDownload.exists()) {
+                    success = true;
+                    File destination = new File(BASE_FILE_PATH + CLIENT_FILE_PATH + userRequest);
+                    Files.copy(fileToDownload.toPath(), destination.toPath());
+                }
+
+                sendStatusCode(success, serverChannel);
+
+                readerNum--;
+                if(readerNum == 0){
+                    isDoneReading.signal();
+                }
+
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            } finally {
+                lock.unlock();
+            }
+
+        }
+        }
+    }
+
+
+
 
 
 
